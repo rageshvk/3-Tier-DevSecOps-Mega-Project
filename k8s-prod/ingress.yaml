@@ -48,4 +48,4 @@ spec:
     - hosts:
         - rageshvk.site
         - www.rageshvk.site
-      secretName: adityajaiswal-co-tls
+      secretName: rageshvk-site-tls
