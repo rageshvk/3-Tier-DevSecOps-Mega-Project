@@ -1,37 +1,34 @@
-
 pipeline {
     agent any
     
     tools {
-        nodejs 'nodejs23'
+        nodejs 'node23'
     }
-
+    
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
     }
+
     stages {
-        stage('Git Checkout') {
+        stage('gitcheckout') {
             steps {
-                git branch: 'main', url: 'https://github.com/jaiswaladi246/3-Tier-DevSecOps-Mega-Project.git'
+                git branch: 'k8s-deploy', url: 'https://github.com/rageshvk/3-Tier-DevSecOps-Mega-Project.git'
             }
         }
-        
-        stage('Frontend Compilation') {
+        stage('frontend compilation') {
             steps {
                 dir('client') {
                     sh 'find . -name "*.js" -exec node --check {} +'
                 }
             }
         }
-        
-        stage('Backend Compilation') {
+        stage('backend compilation') {
             steps {
                 dir('api') {
                     sh 'find . -name "*.js" -exec node --check {} +'
                 }
             }
         }
-        
         stage('GitLeaks Scan') {
             steps {
                 sh 'gitleaks detect --source ./client --exit-code 1'
@@ -41,19 +38,21 @@ pipeline {
         
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonar') {
+                withSonarQubeEnv('sonar-scanner') {
                     sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=NodeJS-Project \
                             -Dsonar.projectKey=NodeJS-Project '''
                 }
             }
         }
+        
         stage('Quality Gate Check') {
             steps {
                 timeout(time: 1, unit: 'HOURS') {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-scanner'
                 }
             }
         }
+        
         stage('Trivy FS Scan') {
             steps {
                 sh 'trivy fs --format table -o fs-report.html .'
@@ -65,9 +64,9 @@ pipeline {
                 script {
                     withDockerRegistry(credentialsId: 'docker-cred') {
                         dir('api') {
-                            sh 'docker build -t adijaiswal/backend:latest .'
-                            sh 'trivy image --format table -o backend-image-report.html adijaiswal/backend:latest '
-                            sh 'docker push adijaiswal/backend:latest'
+                            sh 'docker build -t rageshvk/backend:latest .'
+                            sh 'trivy image --format table -o backend-image-report.html rageshvk/backend:latest '
+                            sh 'docker push rageshvk/backend:latest'
                            
                         }
                     }
@@ -80,53 +79,38 @@ pipeline {
                 script {
                     withDockerRegistry(credentialsId: 'docker-cred') {
                         dir('client') {
-                            sh 'docker build -t adijaiswal/frontend:latest .'
-                            sh 'trivy image --format table -o frontend-image-report.html adijaiswal/frontend:latest '
-                            sh 'docker push adijaiswal/frontend:latest'
+                            sh 'docker build -t rageshvk/frontend:latest .'
+                            sh 'trivy image --format table -o frontend-image-report.html rageshvk/frontend:latest '
+                            sh 'docker push rageshvk/frontend:latest'
                         }
                     }
                 }
             }
-             
-        }  
+        }   
         
-        stage('Manual Approval for Production') {
-            steps {
-                timeout(time: 1, unit: 'HOURS') {
-                    input message: 'Approve deployment to PRODUCTION?', ok: 'Deploy'
-                }
-            }
-        }
-        
-       stage('Deployment To Prod') {
+        stage('K8-deploy') {
             steps {
                 script {
-                    withKubeConfig(caCertificate: '', clusterName: 'devopsshack-cluster', contextName: '', credentialsId: 'k8-prod-token', namespace: 'prod', restrictKubeConfigAccess: false, serverUrl: 'https://AFC6FCFF5360B30D5E8950396E38A8C4.gr7.ap-south-1.eks.amazonaws.com') {
-                        sh 'kubectl apply -f k8s-prod/sc.yaml'
-                        sleep 20
-                        sh 'kubectl apply -f k8s-prod/mysql.yaml -n prod'
-                        sh 'kubectl apply -f k8s-prod/backend.yaml -n prod'
-                        sh 'kubectl apply -f k8s-prod/frontend.yaml -n prod'
-                        sh 'kubectl apply -f k8s-prod/ci.yaml'
-                        sh 'kubectl apply -f k8s-prod/ingress.yaml -n prod'
-                        sleep 30
+                    withKubeConfig(caCertificate: '', clusterName: 'rvk-cluster', contextName: '', credentialsId: 'k8s-token', namespace: 'dev', restrictKubeConfigAccess: false, serverUrl: 'https://D753293B2A1B4A3E5E2FA094C2BCFA91.gr7.ap-south-1.eks.amazonaws.com') {
+                            sh 'kubectl apply -f k8s-dev/sc.yaml -n dev'
+                            sh 'kubectl apply -f k8s-dev/mysql.yaml -n dev'
+                            sh 'kubectl apply -f k8s-dev/backend.yaml -n dev'
+                            sh 'kubectl apply -f k8s-dev/frontend.yaml -n dev'
+                            sleep 30
                     }
                 }
             }
         }
         
-        stage('Verify Deployment To Prod') {
+        stage('verify-K8-deploy') {
             steps {
                 script {
-                    withKubeConfig(caCertificate: '', clusterName: 'devopsshack-cluster', contextName: '', credentialsId: 'k8-prod-token', namespace: 'prod', restrictKubeConfigAccess: false, serverUrl: 'https://AFC6FCFF5360B30D5E8950396E38A8C4.gr7.ap-south-1.eks.amazonaws.com') {
-                        sh 'kubectl get pods -n prod'
-                        sleep 20
-                         sh 'kubectl get ingress -n prod'
-                        
-                    }
-                }
-            }
+                    withKubeConfig(caCertificate: '', clusterName: 'rvk-cluster', contextName: '', credentialsId: 'k8s-token', namespace: 'dev', restrictKubeConfigAccess: false, serverUrl: 'https://D753293B2A1B4A3E5E2FA094C2BCFA91.gr7.ap-south-1.eks.amazonaws.com') {
+                            sh 'kubectl get pods -n dev'
+                            sh 'kubectl get svc -n dev'
+                        }
+                  }
+             }
         }
-            
     }
 }
