@@ -12,7 +12,7 @@ pipeline {
     stages {
         stage('gitcheckout') {
             steps {
-                git branch: 'k8s-deploy', url: 'https://github.com/rageshvk/3-Tier-DevSecOps-Mega-Project.git'
+                git branch: 'main', url: 'https://github.com/rageshvk/3-Tier-DevSecOps-Mega-Project.git'
             }
         }
         stage('frontend compilation') {
@@ -86,31 +86,34 @@ pipeline {
                     }
                 }
             }
-        }   
-        
-        stage('K8-deploy') {
+        } 
+        stage('k8s-prod-deploy') {
             steps {
                 script {
-                    withKubeConfig(caCertificate: '', clusterName: 'rvk-cluster', contextName: '', credentialsId: 'k8s-token', namespace: 'dev', restrictKubeConfigAccess: false, serverUrl: 'https://D753293B2A1B4A3E5E2FA094C2BCFA91.gr7.ap-south-1.eks.amazonaws.com') {
-                            sh 'kubectl apply -f k8s-dev/sc.yaml -n dev'
-                            sh 'kubectl apply -f k8s-dev/mysql.yaml -n dev'
-                            sh 'kubectl apply -f k8s-dev/backend.yaml -n dev'
-                            sh 'kubectl apply -f k8s-dev/frontend.yaml -n dev'
+                    withKubeConfig(caCertificate: '', clusterName: 'rvk-cluster', contextName: '', credentialsId: 'k8s-token', namespace: 'prod', restrictKubeConfigAccess: false, serverUrl: 'https://88DC96AC5460C12BB434F9E98ACBE73A.gr7.ap-south-1.eks.amazonaws.com') {
+                            sh 'kubectl apply -f k8s-prod/sc.yaml'
+                            sleep 20
+                            sh 'kubectl apply -f k8s-prod/mysql.yaml -n prod'
+                            sh 'kubectl apply -f k8s-prod/backend.yaml -n prod'
+                            sh 'kubectl apply -f k8s-prod/frontend.yaml -n prod'
+                            sh 'kubectl apply -f k8s-prod/ci.yaml'
+                            sh 'kubectl apply -f k8s-prod/ingress.yaml -n prod'
                             sleep 30
                     }
                 }
             }
         }
-        
-        stage('verify-K8-deploy') {
+        stage('Verify Deployment To Prod') {
             steps {
                 script {
-                    withKubeConfig(caCertificate: '', clusterName: 'rvk-cluster', contextName: '', credentialsId: 'k8s-token', namespace: 'dev', restrictKubeConfigAccess: false, serverUrl: 'https://D753293B2A1B4A3E5E2FA094C2BCFA91.gr7.ap-south-1.eks.amazonaws.com') {
-                            sh 'kubectl get pods -n dev'
-                            sh 'kubectl get svc -n dev'
-                        }
-                  }
-             }
+                    withKubeConfig(caCertificate: '', clusterName: 'rvk-cluster', contextName: '', credentialsId: 'k8s-token', namespace: 'prod', restrictKubeConfigAccess: false, serverUrl: 'https://88DC96AC5460C12BB434F9E98ACBE73A.gr7.ap-south-1.eks.amazonaws.com') {
+                        sh 'kubectl get pods -n prod'
+                        sleep 20
+                        sh 'kubectl get ingress -n prod'
+                    }
+                }
+            }
         }
+        
     }
 }
