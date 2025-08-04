@@ -19,7 +19,7 @@ grafana:
   service:
     type: LoadBalancer
   adminUser: admin
-  adminPassword: admin123
+  adminPassword: rvk123
 nodeExporter:
   service:
     type: LoadBalancer
